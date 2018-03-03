@@ -35,13 +35,13 @@ def myNetwork():
     h3 = net.addHost('h3', cls=Host, ip=H3_IP, defaultRoute=None)
 
     info( '*** Add links\n')
-    net.addLink(s1, h1)
-    net.addLink(s2, h2)
-    net.addLink(s3, h3)
+    net.addLink(s1, h1, 1, 1)
+    net.addLink(s2, h2, 2, 2)
+    net.addLink(s3, h3, 3, 3)
 
-    net.addLink(s1, s2)
-    net.addLink(s1, s3)
-    net.addLink(s2, s3)
+    net.addLink(s1, s2, 2, 1)
+    net.addLink(s1, s3, 3, 1)
+    net.addLink(s2, s3, 3, 2)
 
     info( '*** Starting network\n')
     net.build()
