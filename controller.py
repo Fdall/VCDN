@@ -17,7 +17,7 @@ class Controller(app_manager.RyuApp):
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
 	self.routing_flow(datapath)
- 
+
     def add_flow(self, datapath, priority, match, actions):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -57,8 +57,3 @@ class Controller(app_manager.RyuApp):
         	eth_type=0x800,
         	ipv4_dst=S3_SUBNET)
         self.add_flow(datapath, 1, match, actions)
-'''
-        actions = [parser.OFPActionOutput(3)]
-        match = parser.OFPMatch()
-        self.add_flow(datapath, 0, match, actions)
-
