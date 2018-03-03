@@ -25,9 +25,9 @@ def myNetwork():
                       port=6633)
 
     info( '*** Add switches\n')
-    s1 = net.addSwitch('s1', cls=OVSKernelSwitch, protocols='OpenFlow13')
-    s2 = net.addSwitch('s2', cls=OVSKernelSwitch, protocols='OpenFlow13')
-    s3 = net.addSwitch('s3', cls=OVSKernelSwitch, protocols='OpenFlow13')
+    s1 = net.addSwitch('s1', cls=OVSKernelSwitch, protocols='OpenFlow13', dpid='1')
+    s2 = net.addSwitch('s2', cls=OVSKernelSwitch, protocols='OpenFlow13', dpid='2')
+    #s3 = net.addSwitch('s3', cls=OVSKernelSwitch, protocols='OpenFlow13', dpid='3')
 
     info( '*** Add hosts\n')
     h1 = net.addHost('h1', cls=Host, ip=H1_IP, defaultRoute=None)
@@ -37,11 +37,11 @@ def myNetwork():
     info( '*** Add links\n')
     net.addLink(s1, h1, 1, 1)
     net.addLink(s2, h2, 2, 2)
-    net.addLink(s3, h3, 3, 3)
+    #net.addLink(s3, h3, 3, 3)
 
     net.addLink(s1, s2, 2, 1)
-    net.addLink(s1, s3, 3, 1)
-    net.addLink(s2, s3, 3, 2)
+    #net.addLink(s1, s3, 3, 1)
+    #net.addLink(s2, s3, 3, 2)
 
     info( '*** Starting network\n')
     net.build()
@@ -53,8 +53,9 @@ def myNetwork():
     info( '*** Starting switches\n')
     net.get('s1').start([c0])
     net.get('s2').start([c0])
-    net.get('s3').start([c0])
+    #net.get('s3').start([c0])
 
+    net.startTerms() 
     CLI(net)
     net.stop()
 
