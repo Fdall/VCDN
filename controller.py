@@ -57,3 +57,25 @@ class Controller(app_manager.RyuApp):
         	eth_type=0x800,
         	ipv4_dst=S3_SUBNET)
         self.add_flow(datapath, 1, match, actions)
+
+        #################### ARP forward
+        #S1 subnet dst
+        actions = [parser.OFPActionOutput(1)]
+        match = parser.OFPMatch(
+        	eth_type=0x806,
+        	arp_tpa=S1_SUBNET)
+        self.add_flow(datapath, 1, match, actions)
+
+        #S2 subnet dst
+        actions = [parser.OFPActionOutput(2)]
+        match = parser.OFPMatch(
+        	eth_type=0x806,
+        	arp_tpa=S2_SUBNET)
+        self.add_flow(datapath, 1, match, actions)
+
+        #S3 subnet dst
+        actions = [parser.OFPActionOutput(3)]
+        match = parser.OFPMatch(
+        	eth_type=0x806,
+        	arp_tpa=S3_SUBNET)
+        self.add_flow(datapath, 1, match, actions)
