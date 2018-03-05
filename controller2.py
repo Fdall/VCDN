@@ -35,11 +35,11 @@ class Controller(app_manager.RyuApp):
         #List of the clusters' name
         #MUST be initialized
         self.clusters = []
-		#dpid = 1
-		#~ routerx = EdgeRouter("RouterName", dpid, '192.0.0.1', '0xffffff')
-		#~ router1 = EdgeRouter("b1", dpid, '192.0.0.1', '0xffffff')
-		#~ router1 = EdgeRouter('b'+dpid, dpid, '10.%d.0.1' % dpid, '0xffffff')
-		#self.edgeMap[dpid] = router1
+        #dpid = 1
+        #~ routerx = EdgeRouter("RouterName", dpid, '192.0.0.1', '0xffffff')
+        #~ router1 = EdgeRouter("b1", dpid, '192.0.0.1', '0xffffff')
+        #~ router1 = EdgeRouter('b'+dpid, dpid, '10.%d.0.1' % dpid, '0xffffff')
+        #self.edgeMap[dpid] = router1
         self.edgeMap = []
         #List of origin server
         #MUST be initialized
@@ -50,43 +50,43 @@ class Controller(app_manager.RyuApp):
         datapath = ev.msg.datapath
         dpid = datapath.id
         self.send_port_desc_stats_request(datapath)
+        pprint(self.edgeMap)
         ip = self.edgeMap[dpid].ip
         mac = self.edgeMap[dpid].mac
         self.config_edge_router(datapath, ip, mac)
 
-	#Get the cluster/outputPort mapping on an edgeRouter
+    #Get the cluster/outputPort mapping on an edgeRouter
     @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
     def port_desc_stats_reply_handler(self, ev):
-		dpid = datapath.id
-		
-		ports = []
+        dpid = ev.msg.datapath.id
 
-		datapath = ev.msg.datapath
+        ports = []
+
+        datapath = ev.msg.datapath
         clusters = {}
         mac = {}
-		
-		for p in ev.msg.body:
-			ports.append(['port_no = %s' % p.port_no,
-						  'hw_addr = %s' % p.hw_addr,
-						  'name = %s' % p.name,
-						  'config = 0x%08x' % p.config])
-			
+
+        for p in ev.msg.body:
+            ports.append(['port_no = %s' % p.port_no,
+                          'hw_addr = %s' % p.hw_addr,
+                          'name = %s' % p.name,
+                          'config = 0x%08x' % p.config])
+
             clusterName = re.sub('(.)*gre', 'cluster', p.name)
             portNumber = p.port_no
-            
+
             mac[portNumber] = p.hw_addr
-            
+
             #TODO faire une demande de la vraie adresse
             macBroadcast = 'ff:ff:ff:ff:ff:ff'
             cluster = Cluster(clusterName, portNumber, macBroadcast)
             clusters[clusterName] = cluster
-            
-        self.edgeMap[dpid].outMap = clusters
-                
-        router = EdgeRouter("b1", dpid, '10.%d.0.254' % dpid, mac)
 
-		print('OFPPortDescStatsReply dpid %d received:' % dpid)
-		pprint.pprint(ports)
+        router = EdgeRouter("b1", dpid, '10.%d.0.254' % dpid, mac, clusters)
+        self.edgeMap[dpid] = router
+
+        print('OFPPortDescStatsReply dpid %d received:' % dpid)
+        pprint.pprint(ports)
 
 
     def add_flow(self, datapath, priority, match, actions):
@@ -106,7 +106,7 @@ class Controller(app_manager.RyuApp):
 
         #set ARP flows
         #Answer ARP REQUEST
-        add_arp_reply_flow(datapath, ip, mac)
+        self.add_arp_reply_flow(datapath, ip, mac)
 
         #Add table-miss flow
         match = parser.OFPMatch()
@@ -140,9 +140,9 @@ class Controller(app_manager.RyuApp):
             #Add a rule to forward to given cluster
             match = parser.OFPMatch(in_port=in_port,
                                     eth_type=0x800,
-                                    ipv4_dst=dst)
+                                    ipv4_dst=ip_dst)
             #Select the cluster to forward the requests
-            clusterName = self.chooseCluster(router, dst)
+            clusterName = self.chooseCluster(router, ip_dst)
             #Use the clusters per edge Map find the infos
             actions = router.forwardTo(clusterName)
             self.add_flow(datapath, 1, match, actions)
@@ -167,28 +167,30 @@ class Controller(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        match = parser.OFPMatch(
-            eth_type=ether_types.ETH_TYPE_ARP,
-            arp_op=arp.ARP_REQUEST,
-            arp_tpa=arp_tpa)
+        for iMac in arp_tha:
 
-        actions = [
-            parser.NXActionRegMove(
-                src_field="eth_src", dst_field="eth_dst", n_bits=48),
-            parser.OFPActionSetField(eth_src=arp_tha),
-            parser.OFPActionSetField(arp_op=arp.ARP_REPLY),
-            parser.NXActionRegMove(
-                src_field="arp_sha", dst_field="arp_tha", n_bits=48),
-            parser.NXActionRegMove(
-                src_field="arp_spa", dst_field="arp_tpa", n_bits=32),
-            parser.OFPActionSetField(arp_sha=arp_tha),
-            parser.OFPActionSetField(arp_spa=arp_tpa),
-            parser.OFPActionOutput(ofproto.OFPP_IN_PORT)]
-        instructions = [
-            parser.OFPInstructionActions(
-                ofproto.OFPIT_APPLY_ACTIONS, actions)]
+            match = parser.OFPMatch(
+                eth_type=ether_types.ETH_TYPE_ARP,
+                arp_op=arp.ARP_REQUEST,
+                arp_tpa=arp_tpa)
 
-        self.add_flow(datapath, 2, match, instructions)
+            actions = [
+                parser.NXActionRegMove(
+                    src_field="eth_src", dst_field="eth_dst", n_bits=48),
+                parser.OFPActionSetField(eth_src=iMac),
+                parser.OFPActionSetField(arp_op=arp.ARP_REPLY),
+                parser.NXActionRegMove(
+                    src_field="arp_sha", dst_field="arp_tha", n_bits=48),
+                parser.NXActionRegMove(
+                    src_field="arp_spa", dst_field="arp_tpa", n_bits=32),
+                parser.OFPActionSetField(arp_sha=iMac),
+                parser.OFPActionSetField(arp_spa=arp_tpa),
+                parser.OFPActionOutput(ofproto.OFPP_IN_PORT)]
+            instructions = [
+                parser.OFPInstructionActions(
+                    ofproto.OFPIT_APPLY_ACTIONS, actions)]
+
+            self.add_flow(datapath, 2, match, instructions)
 
 
     def send_port_desc_stats_request(self, datapath):
@@ -196,16 +198,16 @@ class Controller(app_manager.RyuApp):
         req = ofp_parser.OFPPortDescStatsRequest(datapath, 0)
         datapath.send_msg(req)
 
-    
+
 class EdgeRouter():
     #    name   = router name
     #    outMap = dict of 'port':'clusterObject'
-    def __init__(self, name, dpid, ip, mac):
+    def __init__(self, name, dpid, ip, mac, clusters):
        self.name = name
        self.dpid = dpid
        self.ip = ip
        self.mac = mac
-       self.outMap = {}
+       self.outMap = clusters
 
     def __hash__(self):
         return hash((self.name, self.dpid))
