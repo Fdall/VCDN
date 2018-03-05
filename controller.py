@@ -6,6 +6,24 @@ from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 
+'''
+    IDEA:
+        At booting time,
+            - Get clusters infos from each edge
+            - Make a map of it in each edge object on the controller
+            - Add an ARP REPLY flow on each edge
+            - Add a table miss flow
+
+        Packet-In,
+            - Get source edge from dpid
+            - check if IPV4 dst is a source server on the cdn
+                YES, choose a cluster to forward the request
+                     get the associated port
+                     make the flow
+                NO, drop
+
+'''
+
 class Controller(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
     ROUTERMAP = []
@@ -65,6 +83,7 @@ class Controller(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         msg = ev.msg
+        in_port = msg.match['in_port']
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -144,17 +163,20 @@ class Controller(app_manager.RyuApp):
 	@set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
 	def port_desc_stats_reply_handler(self, ev):
         datapath = ev.msg.datapath
-		ports = {}
+		clusters = {}
 		for p in ev.msg.body:
-            cluster = re.sub('(.)*gre', 'cluster', p.name)
+            clusterName = re.sub('(.)*gre', 'cluster', p.name)
             portNumber = p.port_no
-            ports[cluster] = portNumber
-        ROUTERMAP[datapath.id].outMap = ports
+            #TODO faire une demande de la vraie adresse
+            mac = 'ff:ff:ff:ff:ff:ff'
+            cluster = Cluster(clusterName, portNumber, mac)
+            ports[clusterName] = cluster
+        ROUTERMAP[datapath.id].outMap = clusters
 
 class EdgeRouter():
     '''
         name   = router name
-        outMap = dict of 'port':'clusterID'
+        outMap = dict of 'port':'clusterObject'
     '''
     def __init__(self, name, dpid, ip, mac)
        self.name = name
@@ -170,5 +192,24 @@ class EdgeRouter():
         return (self.name, self.dpid) == (other.name, other.datapath)
 
     def forwardTo(self, clusterName):
-        actions = [parser.OFPActionOutput(self.outMap[clusterName])]
+        actions = [parse.OFPActionSetField(eth_dst=self.outMap[clusterName].mac)
+        actions += [parser.OFPActionOutput(self.outMap[clusterName].port)]
         return actions
+
+
+class Cluster():
+    '''
+        name = cluster name
+        port = ovs port number to reach the cluster from the edge router
+        mac = cluster's mac adress
+    '''
+   def __init__(self, name, port, mac):
+       self.name = name
+       self.mac = mac
+       self.port = port
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        return (self.name) == (other.name)
