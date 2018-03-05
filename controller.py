@@ -32,14 +32,11 @@ class Controller(app_manager.RyuApp):
         #List of the clusters' name
         #MUST be initialized
         self.clusters = []
-'''
-    dpid = 1
-    routerx = EdgeRouter("RouterName", dpid, '192.0.0.1', '0xffffff')
-    router1 = EdgeRouter("b1", dpid, '192.0.0.1', '0xffffff')
-    self.edgeMap[dpid] = router1
-'''
+    #dpid = 1
+    #routerx = EdgeRouter("RouterName", dpid, '192.0.0.1', '0xffffff')
+    #router1 = EdgeRouter("b1", dpid, '192.0.0.1', '0xffffff')
+    #self.edgeMap[dpid] = router1
         self.edgeMap = []
-
         #List of origin server
         #MUST be initialized
         self.handledIps = []
@@ -156,17 +153,17 @@ class Controller(app_manager.RyuApp):
         self.add_flow(datapath, 2, match, instructions)
 
 
-	def send_port_desc_stats_request(self, datapath):
-		ofp_parser = datapath.ofproto_parser
-		req = ofp_parser.OFPPortDescStatsRequest(datapath, 0)
-		datapath.send_msg(req)
+    def send_port_desc_stats_request(self, datapath):
+        ofp_parser = datapath.ofproto_parser
+        req = ofp_parser.OFPPortDescStatsRequest(datapath, 0)
+        datapath.send_msg(req)
 
     #Get the cluster/outputPort mapping on an edgeRouter
     @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
     def port_desc_stats_reply_handler(self, ev):
         datapath = ev.msg.datapath
-	clusters = {}
-	for p in ev.msg.body:
+        clusters = {}
+        for p in ev.msg.body:
             clusterName = re.sub('(.)*gre', 'cluster', p.name)
             portNumber = p.port_no
             #TODO faire une demande de la vraie adresse
@@ -176,10 +173,8 @@ class Controller(app_manager.RyuApp):
         self.edgeMap[datapath.id].outMap = clusters
 
 class EdgeRouter():
-    '''
-        name   = router name
-        outMap = dict of 'port':'clusterObject'
-    '''
+    #    name   = router name
+    #    outMap = dict of 'port':'clusterObject'
     def __init__(self, name, dpid, ip, mac):
        self.name = name
        self.dpid = dpid
@@ -194,24 +189,22 @@ class EdgeRouter():
         return (self.name, self.dpid) == (other.name, other.datapath)
 
     def forwardTo(self, clusterName):
-        actions = [parse.OFPActionSetField(eth_dst=self.outMap[clusterName].mac)
+        actions = [parse.OFPActionSetField(eth_dst=self.outMap[clusterName].mac)]
         actions += [parser.OFPActionOutput(self.outMap[clusterName].port)]
         return actions
 
 
 class Cluster():
-    '''
-        name = cluster name
-        port = ovs port number to reach the cluster from the edge router
-        mac = cluster's mac adress
-    '''
+    #    name = cluster name
+    #    port = ovs port number to reach the cluster from the edge router
+    #    mac = cluster's mac adress
    def __init__(self, name, port, mac):
        self.name = name
        self.mac = mac
        self.port = port
 
-    def __hash__(self):
-        return hash(self.name)
+   def __hash__(self):
+       return hash(self.name)
 
-    def __eq__(self, other):
-        return (self.name) == (other.name)
+   def __eq__(self, other):
+       return (self.name) == (other.name)
