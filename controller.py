@@ -26,21 +26,19 @@ from ryu.lib.packet import ethernet
 
 class Controller(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
-    ROUTERMAP = []
 
-'''
-    dpid = 1
-    router1 = EdgeRouter("b1", dpid, '192.0.0.1', '0xffffff')
-    ROUTERMAP[dpid] = router1
-'''
     def __init__(self, *args, **kwargs):
         super(Controller, self).__init__(*args, **kwargs)
-        #Dict with 'dpid':'routerObject'
-        self.routers = {}
-
-        #Dict with 'clusterName':'clusterId'
+        #List of the clusters' name
         #MUST be initialized
-        self.clusters = {}
+        self.clusters = []
+'''
+    dpid = 1
+    routerx = EdgeRouter("RouterName", dpid, '192.0.0.1', '0xffffff')
+    router1 = EdgeRouter("b1", dpid, '192.0.0.1', '0xffffff')
+    self.edgeMap[dpid] = router1
+'''
+        self.edgeMap = []
 
         #List of origin server
         #MUST be initialized
@@ -51,7 +49,8 @@ class Controller(app_manager.RyuApp):
         datapath = ev.msg.datapath
         dpid = datapath.id
         self.send_port_desc_stats_request(datapath)
-        ip = ROUTERMAP[dpid]
+        ip = self.edgeMap[dpid].ip
+        mac = self.edgeMap[dpid].mac
         self.config_edge_router(datapath, ip, mac)
 
 
@@ -90,7 +89,7 @@ class Controller(app_manager.RyuApp):
 
         # get Datapath ID to identify OpenFlow switches.
         dpid = datapath.id
-        router = ROUTERMAP[dpid]
+        router = self.edgeMap[dpid]
 
         # analyse the received packets using the packet library.
         pkt = packet.Packet(msg.data)
@@ -107,8 +106,10 @@ class Controller(app_manager.RyuApp):
             match = parser.OFPMatch(in_port=in_port,
                                     eth_type=0x800,
                                     ipv4_dst=dst)
-            cluster = self.chooseCluster(router, dst)
-            actions = router.forwardTo(cluster)
+            #Select the cluster to forward the requests
+            clusterName = self.chooseCluster(router, dst)
+            #Use the clusters per edge Map find the infos
+            actions = router.forwardTo(clusterName)
             self.add_flow(datapath, 1, match, actions)
         else:
             #Add a drop table
@@ -124,7 +125,8 @@ class Controller(app_manager.RyuApp):
         datapath.send_msg(out)
 
     def chooseCluster(self, router, dst):
-        return self.clusters['cluster1']
+        #TODO change this . . .
+        return self.clusters[0]
 
     def add_arp_reply_flow(self, datapath, arp_tpa, arp_tha):
         ofproto = datapath.ofproto
@@ -160,25 +162,25 @@ class Controller(app_manager.RyuApp):
 		datapath.send_msg(req)
 
     #Get the cluster/outputPort mapping on an edgeRouter
-	@set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
-	def port_desc_stats_reply_handler(self, ev):
+    @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
+    def port_desc_stats_reply_handler(self, ev):
         datapath = ev.msg.datapath
-		clusters = {}
-		for p in ev.msg.body:
+	clusters = {}
+	for p in ev.msg.body:
             clusterName = re.sub('(.)*gre', 'cluster', p.name)
             portNumber = p.port_no
             #TODO faire une demande de la vraie adresse
             mac = 'ff:ff:ff:ff:ff:ff'
             cluster = Cluster(clusterName, portNumber, mac)
             ports[clusterName] = cluster
-        ROUTERMAP[datapath.id].outMap = clusters
+        self.edgeMap[datapath.id].outMap = clusters
 
 class EdgeRouter():
     '''
         name   = router name
         outMap = dict of 'port':'clusterObject'
     '''
-    def __init__(self, name, dpid, ip, mac)
+    def __init__(self, name, dpid, ip, mac):
        self.name = name
        self.dpid = dpid
        self.ip = ip
